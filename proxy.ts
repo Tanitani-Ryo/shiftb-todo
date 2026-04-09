@@ -12,33 +12,35 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {          cookiesToSet.forEach(({ name, value }) =>
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options as never)
           );
         },
       },
     }
   );
 
-  // セッションをリフレッシュ（重要: getUser() を使うこと）
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
+    const { pathname } = request.nextUrl;
 
-  // 未ログイン かつ /login 以外 → /login にリダイレクト
-  if (!user && pathname !== "/login") {
+    if (!user && pathname !== "/login") {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    if (user && pathname === "/login") {
+      return NextResponse.redirect(new URL("/todos", request.url));
+    }
+  } catch {
     return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  // ログイン済み かつ /login にアクセス → /todos にリダイレクト
-  if (user && pathname === "/login") {
-    return NextResponse.redirect(new URL("/todos", request.url));
   }
 
   return supabaseResponse;
@@ -46,9 +48,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * _next/static, _next/image, favicon.ico を除くすべてのパスに適用
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
